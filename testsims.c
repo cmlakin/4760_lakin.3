@@ -30,12 +30,23 @@ int main(int argc, char* argv[]){
 
 	printf("testsim[%d]: Started with %d %d\n", id, repeats, seconds);
 
+	if (init_shared_data(0) < 0) {
+
+		return -1;
+	}
+
 	for (i = 0; i < repeats; i++) {
 		
 		snprintf(buf2, sizeof(buf2), "%i %i", i, repeats);
+		put_timestamp(buf2, sizeof(buf2), buf2);
+
+		logmsg(logbuffer);
+
 		sleep(seconds);
 
 	}
+
+	deinit_shared_data(0);
 
 	return 0;
 }

@@ -132,7 +132,7 @@ int returnlicense(void) {
 }
 
 
-// nothing to do here, its zeroed at shared memroy creation
+// ** change to create initial message queue???
 int initlicense(void){
 	   return 0;
 }

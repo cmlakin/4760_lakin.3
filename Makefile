@@ -15,7 +15,7 @@ license.o: license.c
 	$(GCC) $(CFLAGS) -c license.c
 
 testsim: testsims.o
-	$(GCC)  $(CFLAGS) testsims.o -o testsim
+	$(GCC)  $(CFLAGS) testsims.o license.o -o testsim
 
 testsims.o: testsims.c
 	$(GCC) $(CFLAGS) -c testsims.c
