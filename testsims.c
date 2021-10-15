@@ -9,15 +9,10 @@ const char * perror_arg0 = "testsim";
 
 int main(int argc, char* argv[]){
 
-	if (argc != 2) {
-		printf("usage: testsim repeat wait\n");
-		return -1;
-	}
-
 	int i;
 	int id;
 	char perror_buf[50];
-	char logbuffer[200];
+	char logbuf[200];
 	char buf2[20];
 
 	int repeats = atoi(argv[1]); // num times to repeat loop
@@ -38,9 +33,9 @@ int main(int argc, char* argv[]){
 	for (i = 0; i < repeats; i++) {
 		
 		snprintf(buf2, sizeof(buf2), "%i %i", i, repeats);
-		put_timestamp(buf2, sizeof(buf2), buf2);
+		put_timestamp(logbuf, sizeof(logbuf), buf2);
 
-		logmsg(logbuffer);
+		logmsg(logbuf);
 
 		sleep(seconds);
 

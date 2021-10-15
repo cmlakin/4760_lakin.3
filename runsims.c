@@ -202,7 +202,7 @@ int main(int argc, char *argv[]){
 	while (fgets(buf, MAX_CANON, stdin) != NULL) {
 
 		getlicense(); // get a license
-		printf("Runsim[%d]: got 1 license\n", getpid());
+		//printf("Runsim[%d]: got 1 license\n", getpid());
 
 		// get id for child process
 		const int assigned_id = assign_id();
@@ -215,9 +215,9 @@ int main(int argc, char *argv[]){
 
 			fclose(stdin); // child doesn't need stdin
 
-			printf("Child: %d started\n", id);
+			//printf("Child: %d started\n", id);
 			docommand(buf);
-			printf("Child: %d finished\n", id);
+			//printf("Child: %d finished\n", id);
 			
 			exit(0);
 		}
@@ -228,7 +228,7 @@ int main(int argc, char *argv[]){
 			// check for finished children
 			while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
 
-				printf("Runsim[%d]: %d child finished\n", getpid(), pid);
+				//printf("Runsim[%d]: %d child finished\n", getpid(), pid);
 				--numchildren; // reduce number of active children
 			}
 		}
@@ -243,7 +243,7 @@ int main(int argc, char *argv[]){
 	// wait for all children to finish
 	while((numchildren > 0) && ((pid = waitpid(-1, &status, 0)) >= 0)) {
 
-		printf("Runsim[%d]: %d child finished\n", getpid(), pid);
+		//printf("Runsim[%d]: %d child finished\n", getpid(), pid);
 		--numchildren;
 	}
 
