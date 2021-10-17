@@ -14,70 +14,29 @@
 
 //const char * perror_arg0 = "license"; // pointer to return error value
 
-static int shmid = -1;  // shared memory identifier
-static char shm_keyname[PATH_MAX];  // shared memory key path linux/limits.h ex: 4096
-static struct shared_data * shdata = NULL;  //s hared memory pointer
-
-int id = 0;  // process id
 int signalled = 0;  // tells if we got a signal(Ctrl-C or alarm)
 char perror_buf[50];  // buffer for perror
 
-static int min_number(const int x, const int y, const int idx, const int idy){
-	if (x < y) {
+static int shmid = -1;  // shared memory identifier
+static char shm_keyname[PATH_MAX];  // shared memory key path linux/limits.h ex: 4096
+static struct shared_data * shdata = NULL;  // shared memory pointer
 
-		return 1;
+static int msgid = -1; // message queue identifier
+static pid_t qpid = 0; // queue id
+enum msgtypes {LOCK = 1, UNLOCK = 2}; // type/status of msg
 
-	}
-	else if (x == y){  // if numbers match 
+struct msgbuf {
+	// add msg queue  stuff here
+};
 
-		return (idx < idy);   // use process ids if equal 
+// ** Set up msg queue signal handler
+// need to get size of message ???
 
-	}
-	else {
-		
-		return 0;
-	}
-}
-
-static int max_number (const int * arr, const int arr_size) {
-	
-	int i = 0;
-	int j = 0;
-	
-	for( i = 1; i < arr_size; ++i) {
-		if (arr[i] > arr[j]) {
-			j = i;		
-		}
-	}
-
-	return arr[j];
-}
-
+// set up a queue manager to check msg type and control crit sec
 
 // Take access to the critical section
-static void bakery_alg() {
-	  int i;
 
-	    shdata->choosing[id] = 1; // tell others we are using the critical section
-		
-		// set our number as one more than the maximum number
-		shdata->number[id]   = 1 + max_number(shdata->number, PROCESSES);
-		shdata->choosing[id] = 0; // we chose our number
-		  
-		for (i = 0; i < PROCESSES; i++) {
-
-		  
-		    // while process i is choosing
-		    while (shdata->choosing[i]){}
-		  
-		    // wait for others infront of us
-		    while ((shdata->number[i] != 0) && 
-				min_number(shdata->number[i], shdata->number[id], i, id) ) {}
-		
-		}
-}
-
-// get out of the critical section
+// get out of the critical section 
 static void bakery_release() {
 
 	// we are done, remove our number
@@ -132,7 +91,7 @@ int returnlicense(void) {
 }
 
 
-// ** change to create initial message queue???
+// ** change to create initial message queue
 int initlicense(void){
 	   return 0;
 }
@@ -324,16 +283,10 @@ void put_timestamp(char * buf, const int buf_size, const char * msg) {
     struct tm * tm = localtime(&t);
     
 	strftime(stamp, sizeof(stamp), "%Y-%M-%d %H:%m:%S", tm);
-	snprintf(buf, buf_size, "%s %u %s\n", stamp, id, msg);    
+	snprintf(buf, buf_size, "%s %u %s\n", stamp, getpid(), msg);    
 }
 
 
-// Get a process id, for bakery algorithm, where each process has a unique number
-int assign_id() {
-
-	// ID is the process counter
-	return shdata->ID++;    
-}
 
 
 

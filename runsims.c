@@ -13,14 +13,10 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-
-//#define BUF_SIZE 1024
-//#define SHM_KEY 0x6893
-
 const char * perror_arg0 = "runsim"; // pointer to return error value
 
 // modified example from book
-// purpose: to splite a line into pointer array to use for exec
+// purpose: to split a line into pointer array to use for exec
 //          and add process id to arguments  
 static int makeargv(const char * s, const char * delimiters, char ***argvp) {
 	
@@ -204,16 +200,14 @@ int main(int argc, char *argv[]){
 		getlicense(); // get a license
 		//printf("Runsim[%d]: got 1 license\n", getpid());
 
-		// get id for child process
-		const int assigned_id = assign_id();
 
 		pid = fork(); // fork a child
 
 		if (pid == 0) {
 
-			id = assigned_id; // new process get a unique id
-
 			fclose(stdin); // child doesn't need stdin
+
+			// ** add things here for sigaction - look at examples
 
 			//printf("Child: %d started\n", id);
 			docommand(buf);

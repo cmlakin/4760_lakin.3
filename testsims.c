@@ -10,15 +10,12 @@ const char * perror_arg0 = "testsim";
 int main(int argc, char* argv[]){
 
 	int i;
-	int id;
 	char perror_buf[50];
 	char logbuf[200];
 	char buf2[20];
 
 	int repeats = atoi(argv[1]); // num times to repeat loop
 	int seconds = atoi(argv[2]); // num seconds to wait/sleep
-
-	id = atoi(argv[3]); // process id used for bakery algorithm
 
 	// create the string from the program name
 	snprintf(perror_buf, sizeof(perror_buf), "%s: Error: ", "testsim");
@@ -31,13 +28,13 @@ int main(int argc, char* argv[]){
 	}
 
 	for (i = 0; i < repeats; i++) {
-		
+	
+		sleep(seconds);
+		// create message to put in logfile
 		snprintf(buf2, sizeof(buf2), "%i %i", i, repeats);
 		put_timestamp(logbuf, sizeof(logbuf), buf2);
 
 		logmsg(logbuf);
-
-		sleep(seconds);
 
 	}
 

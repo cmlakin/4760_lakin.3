@@ -1,5 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <limits.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/msg.h>
+#include <string.h>
+#include <signal.h>
+#include <time.h>
 
 #define PROCESSES 18
 #define ALARM_TIME 100
@@ -10,14 +24,9 @@
 struct shared_data {
 
 	int numlicenses; // number of available licenses
-
-	// variable for working with bakery algorithm
-	int ID;
-	char choosing[PROCESSES];
-	int number[PROCESSES];
 };
 
-extern int id; // process id
+//extern int id; // process id
 extern int signalled; // variable for signalling
 extern char perror_buf[50]; // error buffer
 extern const char * perror_arg0; // pointer to return error value
@@ -25,13 +34,9 @@ extern const char * perror_arg0; // pointer to return error value
 // put a time stamp on messages
 void put_timestamp(char * buf, const int buf_size, const char * msg);
 
-// get unique id number to be used for working with bakery algorithm 
-int assign_id();
-
 // functions for shared memory
 int init_shared_data(const int n);
 int deinit_shared_data(const int n);
-
 
 // blocks until a license is available
 int getlicense(void);
