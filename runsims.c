@@ -1,4 +1,4 @@
-#include <stdio.h>
+/*#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -6,14 +6,16 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-#include "config.h"
 #include <sys/wait.h>
 #include <stdbool.h>
 #include <limits.h>
 #include <fcntl.h>
-#include <sys/stat.h>
+#include <sys/stat.h>*/
+#include "config.h"
 
 const char * perror_arg0 = "runsim"; // pointer to return error value
+
+static pid_t do_child_pid = 0; // to save child pid in docommand if interrupt
 
 // modified example from book
 // purpose: to split a line into pointer array to use for exec
@@ -103,6 +105,8 @@ static void docommand (const char * stdinline) {
 	else {
 
 		int status;
+
+		do_child_pid = pid; // save childs pid in case of an interrupt
 		
 		// wait for Grandchild to finish
 		waitpid(pid, &status, 0);
@@ -132,6 +136,8 @@ static void signal_handler(const int sig) {
 	}
 	// alarm signal
 	else if (sig == SIGALRM) {
+
+		signalled = 1;
 		// send to all processes
 		kill(0, SIGTERM);
 	}
@@ -193,6 +199,7 @@ int main(int argc, char *argv[]){
 		return EXIT_FAILURE;
 
 	}
+
 
 	// read from stdin
 	while (fgets(buf, MAX_CANON, stdin) != NULL) {

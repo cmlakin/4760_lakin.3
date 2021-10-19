@@ -83,6 +83,7 @@ static void msg_release() {
 	}						  
 }
 
+// ** TODO should be complete ??
 int getlicense(void) {
 
 	// lock the critical section
@@ -106,7 +107,7 @@ int getlicense(void) {
 	// reduce the number of licenses with one
 	int license_number = --shdata->numlicenses;
 	
-	printf("Took license %d\n", license_number);
+	printf("PROCESS[%d]: Took license %d\n", getpid(), license_number);
 	
 	msg_release();	
 
@@ -115,6 +116,7 @@ int getlicense(void) {
 }
 
 
+// ** TODO should be complete ??
 int returnlicense(void) {
 	  
 	msg_release();
@@ -132,9 +134,65 @@ int returnlicense(void) {
 
 // ** change to create initial message queue
 int initlicense(void){
-	   return 0;
+
+	int flags = 0;
+
+	// check that runsim is making the call to create sm & queue
+	const int is_runsim = (strcmp("runsim", perror_arg0) == 0) ? 1 : 0;
+
+	// if not already created, then create
+	if (is_runsim) {
+		
+		// create a logfile
+		int fd = creat(LOG_FILENAME, 0700);
+
+		// create the shared memory file
+		fd = creat(shm_keyname, 0700);
+		if (fd == -1) {
+			snprintf(perror_buf, sizeof(perror_buf), "%s: create: ", perror_arg0);
+			perror(perror_buf);
+			return -1;
+		}
+
+		
+		printf("PROCESS[%d]: Created license %s\n", getpid(), shm_keyname);
+
+		// set the flags for shared memory
+		flags = IPC_CREAT | IPC_EXCL | S_IRWXU;
+	}
+
+	// make key for shared memory
+	key_t fkey = ftok(shm_keyname, 1347);
+	if (fkey == -1) {
+		
+		snprintf(perror_buf, sizeof(perror_buf), "%s: ftok: ", perror_arg0);
+		perror(perror_buf);	
+		return -1;  //return error
+		
+	}
+
+	// get shared memory
+	shmid = shmget(fkey, sizeof(struct shared_data), flags);
+	
+	if(shmid == -1){  //if shmget failed
+		
+		snprintf(perror_buf, sizeof(perror_buf), "%s: shmget: ", perror_arg0);
+		perror(perror_buf);
+		return -1;
+	}
+
+	// ** TODO add shared memory for msgid
+	
+	// ** TODO attach to shared memory
+	
+	// ** TODO add section to clear if we created a region and soemthing to 
+	// handle queue communication
+
+	return 0;
 }
 
+
+// ** TODO should be complete ??
 int addtolicense(int n) {
 
 	msg_get();
@@ -147,7 +205,7 @@ int addtolicense(int n) {
 	return 0;
 }
 
-
+// ** TODO should be complete ??
 int removelicenses(int n) {
 
 	msg_get();
@@ -159,7 +217,7 @@ int removelicenses(int n) {
 	return 0;
 }
 
-
+// ** TODO - Not working right now. Check again after getting more set up ** //
 void logmsg(const char* sbuf) {
 
 	//printf("PROCESS[%d]: LOG:  %s", id, sbuf);
@@ -321,7 +379,7 @@ void put_timestamp(char * buf, const int buf_size, const char * msg) {
     time_t t = time(NULL);
     struct tm * tm = localtime(&t);
     
-	strftime(stamp, sizeof(stamp), "%Y-%M-%d %H:%m:%S", tm);
+	strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", tm);
 	snprintf(buf, buf_size, "%s %u %s\n", stamp, getpid(), msg);    
 }
 
