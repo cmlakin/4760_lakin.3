@@ -20,7 +20,7 @@ int main(int argc, char* argv[]){
 	// create the string from the program name
 	snprintf(perror_buf, sizeof(perror_buf), "%s: Error: ", "testsim");
 
-	printf("testsim[%d]: Started with %d %d\n", id, repeats, seconds);
+	printf("testsim[%d]: Started with %d %d\n", getpid(), repeats, seconds);
 
 	if (init_shared_data(0) < 0) {
 

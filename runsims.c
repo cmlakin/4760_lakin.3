@@ -48,7 +48,7 @@ static int makeargv(const char * s, const char * delimiters, char ***argvp) {
 	}
 	//strcpy(t, snew);
 	// add process id to tokens
-	snprintf(t, tlen, "%s %i", snew, id);
+	snprintf(t, tlen, "%s %i", snew);
 	numtokens = 0;
 	if (strtok(t, delimiters) != NULL) 
 		//count the number of tokens in s
@@ -66,7 +66,7 @@ static int makeargv(const char * s, const char * delimiters, char ***argvp) {
 		free(t);
 	else {
 		//strcpy(t, snew);
-		snprintf(t, tlen, "%s %i", snew, id); // add process id to tokens
+		snprintf(t, tlen, "%s", snew); // add process id to tokens
 		**argvp = strtok(t, delimiters);
 		for (i =1; i < numtokens; i++) 
 			*((*argvp) + i) =  strtok(NULL, delimiters);
@@ -128,7 +128,7 @@ static void signal_handler(const int sig) {
 	if (sig == SIGINT) {
 
 		signalled = 1;
-		printf("Process[%d]: Ctrl-C entered\n", id);
+		printf("Ctrl-C entered\n");
 	}
 	// alarm signal
 	else if (sig == SIGALRM) {

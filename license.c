@@ -27,33 +27,72 @@ enum msgtypes {LOCK = 1, UNLOCK = 2}; // type/status of msg
 
 struct msgbuf {
 	// add msg queue  stuff here
+	long mtype;
+	pid_t sender;
 };
 
 // ** Set up msg queue signal handler
-// need to get size of message ???
+
+// get size of message
+static const size_t msg_size = sizeof(pid_t);
 
 // set up a queue manager to check msg type and control crit sec
 
 // Take access to the critical section
+static void msg_get() {
+
+	struct msgbuf mb;
+
+	mb.mtype = LOCK;
+	mb.sender = getpid(); // this will be msg from us to queue
+
+	// check if critical section  available
+	if(msgsnd(msgid, &mb, msg_size, 0) == -1){
+
+		snprintf(perror_buf, sizeof(perror_buf), "%s: msgsnd: ", perror_arg0);
+		perror(perror_buf);
+		return;
+	}
+
+	// receive msg sent (wait)
+  	if(msgrcv(msgid, &mb, msg_size, getpid(), 0) == -1){
+
+		snprintf(perror_buf, sizeof(perror_buf), "%s: msgrcv: ", perror_arg0);	
+		perror(perror_buf);
+		return;
+		
+	}
+}
+
 
 // get out of the critical section 
-static void bakery_release() {
+static void msg_release() {
 
-	// we are done, remove our number
-	shdata->number[id] = 0;
+	struct msgbuf mb;
 
+	mb.mtype = UNLOCK;
+	mb.sender = getpid(); //from us
+
+	//send a message asking to enter critical section
+	if(msgsnd(msgid, &mb, msg_size, 0) == -1){
+	
+		snprintf(perror_buf, sizeof(perror_buf), "%s: msgsnd: ", perror_arg0);
+		perror(perror_buf);
+		return;
+		
+	}						  
 }
 
 int getlicense(void) {
 
 	// lock the critical section
-	bakery_alg();
+	msg_get();
 	
 	// loop until we get a license (blocking function)
 	while(shdata->numlicenses <= 0){
 
 	    // release the critical section, so others can access it
-	    bakery_release();
+	    msg_release();
 	
 	    if(signalled){
 	    	
@@ -61,15 +100,15 @@ int getlicense(void) {
 	    }
 	
 	    // lock it again, before we try to get a license
-	    bakery_alg();
+	    msg_get();
 	}
 
 	// reduce the number of licenses with one
 	int license_number = --shdata->numlicenses;
 	
-	printf("PROCESS[%d]: Took license %d\n", id, license_number);
+	printf("Took license %d\n", license_number);
 	
-	bakery_release();	
+	msg_release();	
 
 	return license_number;
 	
@@ -78,14 +117,14 @@ int getlicense(void) {
 
 int returnlicense(void) {
 	  
-	bakery_alg();
+	msg_release();
 	    
 	// return one license
 	shdata->numlicenses++;
 	
-	printf("PROCESS[%d]: Returned license\n", id);
+	//printf("PROCESS[%d]: Returned license\n", id);
 	
-	bakery_release();
+	msg_release();
 	
 	return 0;	
 }
@@ -98,12 +137,12 @@ int initlicense(void){
 
 int addtolicense(int n) {
 
-	bakery_alg();
+	msg_get();
 	shdata->numlicenses += n;
 	
-	printf("PROCESS[%d]: Added %d licenses\n", id, n);
+	//printf("PROCESS[%d]: Added %d licenses\n", id, n);
 
-	bakery_release();
+	msg_release();
 
 	return 0;
 }
@@ -111,11 +150,11 @@ int addtolicense(int n) {
 
 int removelicenses(int n) {
 
-	bakery_alg();
+	msg_get();
 	shdata->numlicenses -= n;
-	bakery_release();
+	msg_release();
 	
-	printf("PROCESS[%d]: Removed %d licenses\n", id, n);
+	//printf("PROCESS[%d]: Removed %d licenses\n", id, n);
 	
 	return 0;
 }
@@ -123,10 +162,10 @@ int removelicenses(int n) {
 
 void logmsg(const char* sbuf) {
 
-	printf("PROCESS[%d]: LOG:  %s", id, sbuf);
+	//printf("PROCESS[%d]: LOG:  %s", id, sbuf);
 
 	// lock critical section, because file write has to be synchronized
-	bakery_alg();
+	msg_get();
 		
 	
 	// open the file in write only and append mode (to write at end of file)
@@ -148,7 +187,7 @@ void logmsg(const char* sbuf) {
 	}
 
 	// unlock the file	
-	bakery_release();	
+	msg_release();	
 }
 
 // Create/attach the shared memory 
@@ -175,7 +214,7 @@ int init_shared_data(const int n){
 		}
 
 		close(fd);
-		printf("PROCESS[%d]: Created log %s\n", id, LOG_FILENAME);
+		//printf("PROCESS[%d]: Created log %s\n", id, LOG_FILENAME);
 
 		// create the shared memory file
 		fd = creat(shm_keyname, 0700);
@@ -190,7 +229,7 @@ int init_shared_data(const int n){
 		}
 			
 		close(fd);
-		printf("PROCESS[%d]: Created license %s\n", id, shm_keyname);
+		//printf("Created license %s\n", shm_keyname);
 					
 		// set flags for the shared memory creation
 		flags = IPC_CREAT | IPC_EXCL | S_IRWXU;
@@ -269,7 +308,7 @@ int deinit_shared_data(const int n){  // n > 0 only in runsim. testsim uses 0
 			return -1;            
 		}
 
-		printf("PROCESS[%d]: Removed license %s\n", id, shm_keyname);        
+		//printf("PROCESS[%d]: Removed license %s\n", id, shm_keyname);        
 	}
 
 	return 0;    
