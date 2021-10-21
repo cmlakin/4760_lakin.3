@@ -10,6 +10,7 @@
 #include <string.h>
 #include <time.h>*/
 #include "config.h"
+#include <sys/msg.h>
 
 
 int signalled = 0;  // tells if we got a signal(Ctrl-C or alarm)
