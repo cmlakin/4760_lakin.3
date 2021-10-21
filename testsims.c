@@ -1,7 +1,7 @@
-#include <stdio.h>
+/*#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <time.h>
+#include <time.h>*/
 #include "config.h"
 
 // pointer to return error value
@@ -22,7 +22,7 @@ int main(int argc, char* argv[]){
 
 	printf("testsim[%d]: Started with %d %d\n", getpid(), repeats, seconds);
 
-	if (init_shared_data(0) < 0) {
+	if (initlicense() < 0) {
 
 		return -1;
 	}

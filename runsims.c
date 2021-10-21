@@ -37,20 +37,14 @@ static int makeargv(const char * s, const char * delimiters, char ***argvp) {
 
 	*argvp = NULL;
 	snew = s + strspn(s, delimiters); // snew is a real start of string
-	if ((t = malloc(strlen(snew) + 1)) == NULL) {
-		return -1;
-	}
-
-	*argvp = NULL;
-	snew = s + strspn(s, delimiters);  // real start of string
 	tlen = strlen(snew) + 1 + 10;
-	
+
 	if ((t = malloc(tlen)) == NULL) {
 		return -1;
 	}
-	//strcpy(t, snew);
-	// add process id to tokens
-	snprintf(t, tlen, "%s %i", snew);
+
+	strcpy(t, snew);
+	
 	numtokens = 0;
 	if (strtok(t, delimiters) != NULL) 
 		//count the number of tokens in s
@@ -67,14 +61,21 @@ static int makeargv(const char * s, const char * delimiters, char ***argvp) {
 	if (numtokens == 0)
 		free(t);
 	else {
-		//strcpy(t, snew);
-		snprintf(t, tlen, "%s", snew); // add process id to tokens
+		strcpy(t, snew);
 		**argvp = strtok(t, delimiters);
 		for (i =1; i < numtokens; i++) 
 			*((*argvp) + i) =  strtok(NULL, delimiters);
 	}
 	*((*argvp) + numtokens) =NULL; //put in final null pointer
 	return numtokens;
+}
+
+static void do_sig_handler(int sig) {
+
+	if (sig == SIGTERM) {
+		// resend to the child
+		kill(do_child_pid, SIGTERM);
+	}
 }
 
 static void docommand (const char * stdinline) {
@@ -104,10 +105,9 @@ static void docommand (const char * stdinline) {
 	// if its the parent
 	else {
 
+		do_child_pid = pid; // save childs pid in case of an interrupt
 		int status;
 
-		do_child_pid = pid; // save childs pid in case of an interrupt
-		
 		// wait for Grandchild to finish
 		waitpid(pid, &status, 0);
 		printf("Child[%d]: grandchild %d exited\n", getpid(), pid);
@@ -132,7 +132,7 @@ static void signal_handler(const int sig) {
 	if (sig == SIGINT) {
 
 		signalled = 1;
-		printf("Ctrl-C entered\n");
+		printf("\nRUNSIM[%d]: Ctrl-C entered\n", getpid());
 	}
 	// alarm signal
 	else if (sig == SIGALRM) {
@@ -194,19 +194,22 @@ int main(int argc, char *argv[]){
 	const int n = atoi(argv[1]); // get n value from command line
 
 	// initialize signals and shared memory
-	if ((init_signalling() < 0) || (init_shared_data(n) < 0)) {
+	if ((init_signalling() < 0) || (initlicense() < 0)) {
 
 		return EXIT_FAILURE;
 
 	}
-
+	addtolicenses(n);
 
 	// read from stdin
 	while (fgets(buf, MAX_CANON, stdin) != NULL) {
 
 		getlicense(); // get a license
-		//printf("Runsim[%d]: got 1 license\n", getpid());
+		printf("Runsim[%d]: got 1 license\n", getpid());
 
+		if (signalled) {
+			break;
+		}
 
 		pid = fork(); // fork a child
 
@@ -214,11 +217,20 @@ int main(int argc, char *argv[]){
 
 			fclose(stdin); // child doesn't need stdin
 
-			// ** add things here for sigaction - look at examples
+			struct sigaction sa;
+			sa.sa_flags = 0;
+			sigemptyset(&sa.sa_mask);
+			sa.sa_handler = do_sig_handler;
+			
+			if(sigaction(SIGTERM, &sa, NULL) == -1){
+				
+				perror("sigaction");
+				return -1;
+			}
 
-			//printf("Child: %d started\n", id);
+			printf("Child: %d started\n", getpid());
 			docommand(buf);
-			//printf("Child: %d finished\n", id);
+			printf("Child: %d finished\n", getpid());
 			
 			exit(0);
 		}
@@ -229,7 +241,7 @@ int main(int argc, char *argv[]){
 			// check for finished children
 			while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
 
-				//printf("Runsim[%d]: %d child finished\n", getpid(), pid);
+				printf("Runsim[%d]: %d child finished\n", getpid(), pid);
 				--numchildren; // reduce number of active children
 			}
 		}
@@ -237,14 +249,14 @@ int main(int argc, char *argv[]){
 
 	if (numchildren) {
 		
-		printf("Runsim[%d]: waiting for %d children\n", getpid(), numchildren);
+		printf("RUNSIM[%d]: waiting for %d children\n", getpid(), numchildren);
 
 	}
 
 	// wait for all children to finish
 	while((numchildren > 0) && ((pid = waitpid(-1, &status, 0)) >= 0)) {
 
-		//printf("Runsim[%d]: %d child finished\n", getpid(), pid);
+		printf("Runsim[%d]: %d child finished\n", getpid(), pid);
 		--numchildren;
 	}
 

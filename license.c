@@ -1,4 +1,4 @@
-#include <stdio.h>
+/*#include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/types.h>
@@ -8,11 +8,9 @@
 #include <unistd.h>
 #include <strings.h>
 #include <string.h>
-#include <time.h>
+#include <time.h>*/
 #include "config.h"
 
-
-//const char * perror_arg0 = "license"; // pointer to return error value
 
 int signalled = 0;  // tells if we got a signal(Ctrl-C or alarm)
 char perror_buf[50];  // buffer for perror
@@ -31,12 +29,91 @@ struct msgbuf {
 	pid_t sender;
 };
 
-// ** Set up msg queue signal handler
+// msg queue signal handler
+static void queue_sig_handler(int sig) {
+	printf("QUEUE: Signal %d received\n", sig);
+	if (sig == SIGINT) {
+		signalled = 1;
+	}
+}
 
 // get size of message
 static const size_t msg_size = sizeof(pid_t);
 
 // set up a queue manager to check msg type and control crit sec
+static void queue_manager(void) {
+
+	struct msgbuf mb;
+	pid_t holder = 0;
+
+	struct sigaction sa;
+  	sa.sa_flags = SA_RESTART;
+    sigemptyset(&sa.sa_mask);
+	
+	sa.sa_handler = queue_sig_handler;
+
+	
+	if( (sigaction(SIGTERM, &sa, NULL) == -1) 
+		|| (sigaction(SIGALRM, &sa, NULL) == -1) 
+		|| (sigaction(SIGINT, &sa, NULL) == -1)) {
+
+			perror("sigaction");
+			return; // ask again why I'm not supposed to put anything here ???
+	}
+
+	while(signalled == 0){
+		
+		if(holder == 0){
+			
+			//wait for request, send to us(we use our PID as type)
+			if(msgrcv(msgid, &mb, msg_size, LOCK, 0) == -1){
+	        	
+				if(errno != EINTR){
+					snprintf(perror_buf, sizeof(perror_buf), "%s: msgrcv: ", perror_arg0);
+					perror(perror_buf);
+					break;
+				}
+				continue;
+			}
+
+			holder = mb.sender; //holder of the lock, is process who sent message
+			//printf("QUEUE[%d]: %d LOCKED!\n", getpid(), holder);
+			
+			//send reply
+			mb.mtype = holder; // msg to holder
+			mb.sender = getpid(); // from us
+
+			if(msgsnd(msgid, &mb, msg_size, 0) == -1){
+				
+				snprintf(perror_buf, sizeof(perror_buf), "%s: 1msgsnd: ", perror_arg0);
+				perror(perror_buf);
+				break;
+			}
+		}
+
+		//wait for the unlock
+		if(msgrcv(msgid, &mb, msg_size, UNLOCK, 0) == -1){
+			
+			if(errno != EINTR){
+				
+				snprintf(perror_buf, sizeof(perror_buf), "%s: msgrcv: ", perror_arg0);
+				perror(perror_buf);
+				break;
+			}
+			
+			continue;
+		}
+
+		// if not us
+		if (holder != mb.sender)  {
+			printf("QUEUE[%d]: Unlocked, but not by holder\n", getpid());
+		}
+
+		holder = 0;
+	}
+
+	exit(0);
+}
 
 // Take access to the critical section
 static void msg_get() {
@@ -44,22 +121,22 @@ static void msg_get() {
 	struct msgbuf mb;
 
 	mb.mtype = LOCK;
-	mb.sender = getpid(); // this will be msg from us to queue
+	mb.sender = getpid(); // this will be msg from us
 
-	// check if critical section  available
-	if(msgsnd(msgid, &mb, msg_size, 0) == -1){
+	// check if critical section  available - send msg to request
+	if (msgsnd(msgid, &mb, msg_size, 0) == -1){
 
-		snprintf(perror_buf, sizeof(perror_buf), "%s: msgsnd: ", perror_arg0);
+		snprintf(perror_buf, sizeof(perror_buf), "%s: 2Msgsnd: ", perror_arg0);
 		perror(perror_buf);
-		return;
+		//return;
 	}
 
-	// receive msg sent (wait)
-  	if(msgrcv(msgid, &mb, msg_size, getpid(), 0) == -1){
+	// receive msg sent
+  	if (msgrcv(msgid, &mb, msg_size, getpid(), 0) == -1){
 
 		snprintf(perror_buf, sizeof(perror_buf), "%s: msgrcv: ", perror_arg0);	
 		perror(perror_buf);
-		return;
+		//return;
 		
 	}
 }
@@ -74,16 +151,15 @@ static void msg_release() {
 	mb.sender = getpid(); //from us
 
 	//send a message asking to enter critical section
-	if(msgsnd(msgid, &mb, msg_size, 0) == -1){
+	if (msgsnd(msgid, &mb, msg_size, 0) == -1){
 	
-		snprintf(perror_buf, sizeof(perror_buf), "%s: msgsnd: ", perror_arg0);
+		snprintf(perror_buf, sizeof(perror_buf), "%s: 3msgsnd: ", perror_arg0);
 		perror(perror_buf);
 		return;
 		
 	}						  
 }
 
-// ** TODO should be complete ??
 int getlicense(void) {
 
 	// lock the critical section
@@ -96,7 +172,6 @@ int getlicense(void) {
 	    msg_release();
 	
 	    if(signalled){
-	    	
 			return -1;
 	    }
 	
@@ -104,7 +179,7 @@ int getlicense(void) {
 	    msg_get();
 	}
 
-	// reduce the number of licenses with one
+	// reduce the number of licenses 
 	int license_number = --shdata->numlicenses;
 	
 	printf("PROCESS[%d]: Took license %d\n", getpid(), license_number);
@@ -112,30 +187,28 @@ int getlicense(void) {
 	msg_release();	
 
 	return license_number;
-	
 }
 
-
-// ** TODO should be complete ??
 int returnlicense(void) {
 	  
-	msg_release();
+	msg_get();
 	    
 	// return one license
 	shdata->numlicenses++;
-	
-	//printf("PROCESS[%d]: Returned license\n", id);
-	
+	printf("PROCESS[%d]: Returned license\n", getpid());
 	msg_release();
 	
 	return 0;	
 }
 
 
-// ** change to create initial message queue
+// create initial message queue
 int initlicense(void){
 
 	int flags = 0;
+
+	// create shared memory key name
+	snprintf(shm_keyname, PATH_MAX, "/tmp/license.%u", getuid());
 
 	// check that runsim is making the call to create sm & queue
 	const int is_runsim = (strcmp("runsim", perror_arg0) == 0) ? 1 : 0;
@@ -145,15 +218,23 @@ int initlicense(void){
 		
 		// create a logfile
 		int fd = creat(LOG_FILENAME, 0700);
+		if (fd == -1) {
+			snprintf(perror_buf, sizeof(perror_buf), "%s: creat: ", perror_arg0);
+			perror(perror_buf);
+			return -1;
+		}
+		close(fd);
+
+		printf("PROCESS[%d]: Created license %s\n", getpid(), shm_keyname);
 
 		// create the shared memory file
 		fd = creat(shm_keyname, 0700);
 		if (fd == -1) {
-			snprintf(perror_buf, sizeof(perror_buf), "%s: create: ", perror_arg0);
+			snprintf(perror_buf, sizeof(perror_buf), "%s: creat: ", perror_arg0);
 			perror(perror_buf);
 			return -1;
 		}
-
+		close(fd);
 		
 		printf("PROCESS[%d]: Created license %s\n", getpid(), shm_keyname);
 
@@ -181,37 +262,73 @@ int initlicense(void){
 		return -1;
 	}
 
-	// ** TODO add shared memory for msgid
-	
-	// ** TODO attach to shared memory
-	
-	// ** TODO add section to clear if we created a region and soemthing to 
-	// handle queue communication
+	fkey = ftok(shm_keyname, 6671);
 
+	if (fkey == -1) {
+		
+		snprintf(perror_buf, sizeof(perror_buf), "%s: ftok: ", perror_arg0);
+		perror(perror_buf);	
+		return -1;  //return error
+		
+	}
+
+	// ** add shared memory for msgid
+	msgid = msgget(fkey, flags);
+	if(shmid == -1){  //if shmget failed
+		
+		snprintf(perror_buf, sizeof(perror_buf), "%s: msgget: ", perror_arg0);
+		perror(perror_buf);
+		return -1;
+	}
+	
+	// ** attach to shared memory
+	shdata = (struct shared_data*) shmat(shmid, NULL, 0);
+	// if attach failed
+	if (shdata == (void*) -1) {
+	
+		snprintf(perror_buf, sizeof(perror_buf), "%s: shmat: ", perror_arg0);
+		perror(perror_buf);
+		return -1;
+	}
+	
+	// add section to clear if we created a region 
+	if (is_runsim) {
+
+		// clear the shared data
+		bzero(shdata, sizeof(struct shared_data));
+
+		// create a process to handle the queue communication
+		qpid = fork();
+		if (qpid == -1) {
+			return -1;
+		}
+		else if (qpid == 0) {
+			queue_manager();
+			exit(0);
+		}
+		else {
+			printf("RUNSIM[%d]:  Started queue manager with PID %d\n", getpid(), qpid);
+		}
+	}
 	return 0;
 }
 
-
-// ** TODO should be complete ??
-int addtolicense(int n) {
+int addtolicenses(int n) {
 
 	msg_get();
 	shdata->numlicenses += n;
 	
 	//printf("PROCESS[%d]: Added %d licenses\n", id, n);
-
 	msg_release();
 
 	return 0;
 }
 
-// ** TODO should be complete ??
 int removelicenses(int n) {
 
 	msg_get();
 	shdata->numlicenses -= n;
 	msg_release();
-	
 	//printf("PROCESS[%d]: Removed %d licenses\n", id, n);
 	
 	return 0;
@@ -220,12 +337,9 @@ int removelicenses(int n) {
 // ** TODO - Not working right now. Check again after getting more set up ** //
 void logmsg(const char* sbuf) {
 
-	//printf("PROCESS[%d]: LOG:  %s", id, sbuf);
-
 	// lock critical section, because file write has to be synchronized
 	msg_get();
 		
-	
 	// open the file in write only and append mode (to write at end of file)
 	const int log_fd = open(LOG_FILENAME, O_WRONLY | O_APPEND);
 	
@@ -234,10 +348,10 @@ void logmsg(const char* sbuf) {
 		// show the error
 		snprintf(perror_buf, sizeof(perror_buf), "%s: open: ", perror_arg0);	
 		perror(perror_buf);
-	
 	}
 	else {
 		
+		printf("PROCESS[%d]: LOG:  %s", getpid(), sbuf);
 		// save the string buffer to file
 		write(log_fd, (void*) sbuf, strlen(sbuf));
 		
@@ -246,98 +360,6 @@ void logmsg(const char* sbuf) {
 
 	// unlock the file	
 	msg_release();	
-}
-
-// Create/attach the shared memory 
-int init_shared_data(const int n){
-
-	int flags = 0;
-
-	// create shared memory key name
-	snprintf(shm_keyname, PATH_MAX, "/tmp/license.%u", getuid());
-		
-	
-	if (n) {  // if we have to create
-			
-	
-		// create the logfile
-		int fd = creat(LOG_FILENAME, 0700);
-	   
-		if (fd == -1) {
-			    	
-			snprintf(perror_buf, sizeof(perror_buf), "%s: creat: ", perror_arg0);       
-			perror(perror_buf);
-		        
-			return -1;    
-		}
-
-		close(fd);
-		//printf("PROCESS[%d]: Created log %s\n", id, LOG_FILENAME);
-
-		// create the shared memory file
-		fd = creat(shm_keyname, 0700);
-			
-		if (fd == -1) {
-					
-			snprintf(perror_buf, sizeof(perror_buf), "%s: creat: ", perror_arg0);
-			perror(perror_buf);
-				
-			return -1;
-			
-		}
-			
-		close(fd);
-		//printf("Created license %s\n", shm_keyname);
-					
-		// set flags for the shared memory creation
-		flags = IPC_CREAT | IPC_EXCL | S_IRWXU;
-	}
-
-	// make a key for our shared memory
-	key_t fkey = ftok(shm_keyname, 1234);
-	
-	if (fkey == -1) { // if ftok failed
-		
-		snprintf(perror_buf, sizeof(perror_buf), "%s: ftok: ", perror_arg0);
-	    perror(perror_buf);
-	    
-		return -1;  // return error
-	}
-
-	// get a shared memory region
-	shmid = shmget(fkey, sizeof(struct shared_data), flags);
-	
-	if (shmid == -1) {  // if shmget failed
-		
-		snprintf(perror_buf, sizeof(perror_buf), "%s: shmget: ", perror_arg0);
-		perror(perror_buf);    
-		
-		return -1;
-	}
-
-	// attach the region to process memory
-	
-	shdata = (struct shared_data*) shmat(shmid, NULL, 0);
-	
-	if (shdata == (void*)-1) {  //i f attach failed
-	
-		snprintf(perror_buf, sizeof(perror_buf), "%s: shmat: ", perror_arg0);    
-		perror(perror_buf);
-	    
-		return -1;
-	}
-
-	if (n) {  //if we created a region
-
-		//clear all of the shared data
-		bzero(shdata, sizeof(struct shared_data));
-		
-		//initialize it
-		initlicense();
-		addtolicense(n);	
-	}
-			
-	return 0;	
 }
 
 // Detach/destroy the shared memory region
@@ -354,9 +376,14 @@ int deinit_shared_data(const int n){  // n > 0 only in runsim. testsim uses 0
   
 	if (n > 0) { // if its runsim
     
+		// stop queue management
+		kill(qpid, SIGINT);
+		waitpid(qpid, NULL, 0);
+		
 		// remove the region from system        
 		shmctl(shmid, IPC_RMID, NULL);
- 
+ 		msgctl(msgid, IPC_RMID, NULL);
+
 		// delete the shared memory file
 		if (unlink(shm_keyname) == -1) {
         	
@@ -366,7 +393,7 @@ int deinit_shared_data(const int n){  // n > 0 only in runsim. testsim uses 0
 			return -1;            
 		}
 
-		//printf("PROCESS[%d]: Removed license %s\n", id, shm_keyname);        
+		printf("PROCESS[%d]: Removed license %s\n", getpid(), shm_keyname);        
 	}
 
 	return 0;    
